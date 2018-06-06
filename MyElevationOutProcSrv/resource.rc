@@ -1,0 +1,9 @@
+#define IDS_STRING101   101
+
+STRINGTABLE
+BEGIN
+// レジストリエントリのCLSID\LocalizedStringの
+// 「@ + DLLのフルパス + ",-" + 番号」で示されている文字列リソース
+// (一致する文字列リソースがないとElevationできない。)
+IDS_STRING101           "MyElevationOutProcSrv"
+END
