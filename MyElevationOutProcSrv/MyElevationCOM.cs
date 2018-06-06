@@ -19,6 +19,9 @@ namespace MyElevationOutProcSrv
         void ShowHello();
     }
 
+    /// <summary>
+    /// 独自COMイベントの定義
+    /// </summary>
     [Guid("FFD359DD-D03C-4573-9986-FE5E6BDC3A29"), ComVisible(true)]
     [InterfaceType(ComInterfaceType.InterfaceIsIDispatch)]
     public interface _MyElevationOutProcSrvEvents
@@ -61,11 +64,13 @@ namespace MyElevationOutProcSrv
 
         public MyElevationOutProcSrv()
         {
+            // 残存オブジェクト数 +1
             MyApplicationContext.Current.IncrementCount();
         }
 
         ~MyElevationOutProcSrv()
         {
+            // 残存オブジェクト数 -1
             MyApplicationContext.Current.DecrementCount();
         }
 

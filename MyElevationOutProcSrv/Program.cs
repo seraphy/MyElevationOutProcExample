@@ -181,7 +181,7 @@ namespace MyElevationOutProcSrv
             {
                 highWaterMark = cnt;
             }
-            Console.WriteLine("incl count={0} waterMark={0}", activeCount, highWaterMark);
+            Console.WriteLine("incl count={0} waterMark={1}", activeCount, highWaterMark);
         }
 
         /// <summary>

@@ -137,6 +137,9 @@ C#でのCOMの定義方法は、基本的にはDLLのCOMの場合と変わらな
         void ShowHello();
     }
 
+    /// <summary>
+    /// 独自COMイベントの定義
+    /// </summary>
     [Guid("FFD359DD-D03C-4573-9986-FE5E6BDC3A29"), ComVisible(true)]
     [InterfaceType(ComInterfaceType.InterfaceIsIDispatch)]
     public interface _MyElevationOutProcSrvEvents
@@ -179,11 +182,13 @@ C#でのCOMの定義方法は、基本的にはDLLのCOMの場合と変わらな
 
         public MyElevationOutProcSrv()
         {
+        	// 残存オブジェクト数+1
             MyApplicationContext.Current.IncrementCount();
         }
 
         ~MyElevationOutProcSrv()
         {
+        	// 残存オブジェクト数-1
             MyApplicationContext.Current.DecrementCount();
         }
 
@@ -262,7 +267,6 @@ C#でのCOMの定義方法は、基本的にはDLLのCOMの場合と変わらな
                 // Elevation
                 using (var subkey = keyCLSID.CreateSubKey("Elevation"))
                 {
-                    // この実行ファイル(*.exe)へのパスを登録する
                     subkey.SetValue("Enabled", 1, RegistryValueKind.DWord);
                 }
             }
@@ -729,64 +733,19 @@ IDS_STRING101           "MyElevationOutProcSrv"
 END
 ```
 
-このリソースソースは、リソースコンパイラ(rc.exe) によってコンパイルされ、```resource.res``` というファイルになる。
-
-
 問題は、VC++プロジェクトの場合であれば、*.rc ファイルはリソースファイルとして認識され、コンパイルされるが、
 C#プロジェクトの場合は、ソリューションエクスプローラから *.rcファイルを追加してもリソースコンパイラのソースとしては認識されない点である。
 
 
-開発者コマンドプロンプトを開いて、手作業で ```rc.exe``` でコンパイルしても良いのだが、
-```MSBuild``` を手動で書き換えて、C#のプロジェクト中にVC++用のリソースコンパイラのタスクを流用させてしまう手法がある。
+そこで、**開発者コマンドプロンプトを開いて、手作業で ```rc.exe``` でコンパイルする。**
 
-- https://www.e-learn.cn/content/wangluowenzhang/466086
+(```MSBuild``` を手動で書き換えて、C#のプロジェクト中にVC++用のリソースコンパイラのタスクを流用させてしまう手法もあるが、
+VSバージョンによって設定内容が異なるので可搬性の高いスクリプトを書くのは難しいようだ。)
+
+- https://stackoverflow.com/questions/8057080/how-to-embed-a-resource-in-a-net-pe-executable
 - https://msdn.microsoft.com/en-us/library/ee862475.aspx
 
-
-### MyElevationOutProcSrv.csprojファイルにrcタスクとリソースファイル設定を追加する方法
-
-*.csprojファイルを直接開いて、以下のようにタスクを追記する。
-
-```xml
-<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
-  <UsingTask TaskName="RC" AssemblyName="Microsoft.Build.CppTasks.Common, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a" />
-  <Target Name="ResourceCompile" BeforeTargets="BeforeCompile" Condition="'@(ResourceCompile)' != ''">
-    <RC Source="@(ResourceCompile)" />
-  </Target>
-  <PropertyGroup>
-  ....
-    <Win32Resource>@(ResourceCompile->'%(RelativeDir)%(filename).res')</Win32Resource>
-  </PropertyGroup>
-  <ItemGroup>
-    <ResourceCompile Include="resource.rc" />
-  </ItemGroup>
-  ....
-</Project>
-```
-
-```<UsingTask>``` で、```Microsoft.Build.CppTasks.Common``` のVC++用のタスクを使用して、
-
-```<Target Name="ResourceCompile"...><RC Source="@(ResourceCompiler)"/>...``` で、リソースコンパイラ定義部分を、RCタスクで処理する。
-
-これにより、
-
-```xml
-    <ResourceCompile Include="resource.rc" />
-```
-と指定されている ```resource.rc``` ファイルは、rc.exeによってコンパイルされて、 ```resource.res``` に変換される。
-
-この変換結果を、プロパティグループ内の
-
-```xml
-    <Win32Resource>@(ResourceCompile->'%(RelativeDir)%(filename).res')</Win32Resource>
-```
-
-に設定することで、生成されたresファイルをwin32リソースとしてEXEに取り込む設定となる。
-
-
-もし、手動で ```rc.exe``` でコンパイルするのであれば、コンパイル結果の ```*.res``` ファイル名を、直接、ここに書けば良い。
+リソースコンパイラによって ```resource.res``` ファイルが得られたら、*.csprojファイルを直接開いて、以下のようにリソースを追記する。
 
 ```xml
     <Win32Resource>resource.res</Win32Resource>
@@ -887,9 +846,3 @@ End Sub
 
 
 以上、メモ終了。
-
-
-
-
-
-
