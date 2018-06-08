@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="ResourceCompile"
+    ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">  
+
+    <!-- WindowsSDKのパスを取得する -->
+    <Import Project="$(VCTargetsPath)\Microsoft.Cpp.WindowsSDK.props" />
+    
+    <UsingTask TaskName="SetEnv" AssemblyFile="$(VCTargetsPath)Microsoft.Build.CppTasks.Common.dll"/>
+    <UsingTask TaskName="RC" AssemblyFile="$(VCTargetsPath)Microsoft.Build.CppTasks.Common.dll"/>
+
+    <!-- 環境変数PATHを設定する -->
+    <Target Name="SetEnvironmentVariables" BeforeTargets="ResourceCompile">
+        <Message Text="VCTargetsPath=$(VCTargetsPath)"/>
+        <Message Text="WindowsSdkDir=$(WindowsSdkDir)" />
+        <SetEnv Condition="'$(WindowsSdkDir)' != ''"
+                Name ="PATH"
+                Value ="$(WindowsSdkDir)bin\x86;"
+                Prefix ="true">
+            <Output TaskParameter="OutputEnvironmentVariable" PropertyName="Path"/>
+        </SetEnv>
+        <Message Text="Path=$(PATH)" Importance="high"/>
+    </Target>
+
+    <!-- WindowsSDK上のrc.exeを呼び出す -->
+    <Target Name="ResourceCompile"
+            Inputs="@(ResourceCompile)"
+            Outputs="@(ResourceCompile -> '%(RelativeDir)%(FileName).res')">
+        <RC Source="@(ResourceCompile)"
+            SuppressStartupBanner="False"
+            ResourceOutputFileName="%(RelativeDir)%(filename).res"/>
+    </Target>
+
+    <!-- 対象リソースファイル -->
+    <ItemGroup>
+      <ResourceCompile Include="*.rc" />
+    </ItemGroup>
+</Project>  

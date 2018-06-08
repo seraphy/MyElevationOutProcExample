@@ -53,7 +53,7 @@ DotNETはCOMとの連携が非常に手厚くなっており、C#でCOMのIn-Pro
 ところが、標準ではOut-Procサーバー(EXE)を作成する方法は用意されていない。
 
 
-しかし、COMとしての仕組みは十分に備えているため、C++(Win32)によるEXEサーバを作成する手順と同じ手順を踏むことで、C#でもOut of ProcessなEXEサーバーを実現することができる。
+しかし、COMとしての仕組みは十分に備えているため、C++(Win32)によるEXEサーバと同じ作成手順を踏むことで、C#でもOut of ProcessなEXEサーバーを実現することができる。
 
 具体的には、以下の手順を行う。
 
@@ -733,25 +733,103 @@ IDS_STRING101           "MyElevationOutProcSrv"
 END
 ```
 
-問題は、VC++プロジェクトの場合であれば、*.rc ファイルはリソースファイルとして認識され、コンパイルされるが、
-C#プロジェクトの場合は、ソリューションエクスプローラから *.rcファイルを追加してもリソースコンパイラのソースとしては認識されない点である。
+問題は、VC++プロジェクトの場合であれば、*.rc ファイルはWin32リソースファイルとして認識され、コンパイルされるが、
+C#プロジェクトの場合は、ソリューションエクスプローラから *.rcファイルを追加してもWin32リソースコンパイラのソースとしては認識されない点である。
 
 
 そこで、**開発者コマンドプロンプトを開いて、手作業で ```rc.exe``` でコンパイルする。**
 
-(```MSBuild``` を手動で書き換えて、C#のプロジェクト中にVC++用のリソースコンパイラのタスクを流用させてしまう手法もあるが、
-VSバージョンによって設定内容が異なるので可搬性の高いスクリプトを書くのは難しいようだ。)
+リソースコンパイラによって ```resource.res``` ファイルが得られたら、*.csprojファイルを直接開いて、
+以下のように ```<PropertyGroup>``` の下に ```<Win32Resource>``` リソースを追記する。
+
+```xml
+	<PropertyGroup>
+		....
+		<Win32Resource>resource.res</Win32Resource>
+	</PropertyGroup>
+```
+
+### MSBuildのカスタマイズによるC#プロジェクト中のリソースコンパイラの実行
+
+自動的にビルドさせたいのであれば、```MSBuild``` を手動で書き換えて、C#のプロジェクト中にVC++用のリソースコンパイラのタスクを流用させてしまう手法もある。
 
 - https://stackoverflow.com/questions/8057080/how-to-embed-a-resource-in-a-net-pe-executable
 - https://msdn.microsoft.com/en-us/library/ee862475.aspx
 
-リソースコンパイラによって ```resource.res``` ファイルが得られたら、*.csprojファイルを直接開いて、以下のようにリソースを追記する。
+(ただし、VSバージョンによって設定内容が異なるので可搬性の高いスクリプトを書くのは難しいようだ。環境が変わったら手直しが必要になるかもしれない。)
+
+
+今回は、VS2017のC++プロジェクトが参照している ```Microsoft.CppCommon.targets``` のタスク定義から、リソースコンパイラのタスク定義部を抽出し、
+リソースコンパイル用のターゲットを定義してみる。
 
 ```xml
-    <Win32Resource>resource.res</Win32Resource>
+  <!--
+    VC++のRCタスクを流用する (VS2017)
+    (Microsoft.CppCommon.targets の定義から抜粋。)
+    https://docs.microsoft.com/ja-jp/visualstudio/msbuild/rc-task
+   -->
+  <UsingTask TaskName="RC" AssemblyFile="$(VCTargetsPath)Microsoft.Build.CppTasks.Common.dll"/>
+  <Target Name="ResourceCompile" BeforeTargets="BeforeCompile" Condition="'@(ResourceCompile)' != ''">
+    <RC Source="@(ResourceCompile)" SuppressStartupBanner="False" ResourceOutputFileName="%(RelativeDir)%(filename).res"/>
+  </Target>
 ```
 
-なお、この箇所は画面からも確認できるが入力はできない。(ファイル名としてチェックされて、エラーになって保存できないため。)
+このResourceCompileタスクは、```ResourceCompile``` というアイテムグループがあれば、これを ```BeforeCompile``` ターゲット前に実行する。
+(なので、C#ソースがコンパイルされるまえにリソースファイルがコンパイルされる。)
+
+リソースコンパイラはソースとして単一ファイルしか受け付けないため、```%(filename).res``` のアイテムに対する属性を取得することで、
+単一ファイルごとの呼び出しへのバッチ化を行っている。
+(もしくは、```ResourceOutputFileName``` を指定せず、```Source="%(ResourceCompile.Identity)"``` としても良い。コンパイル結果は暗黙で拡張子RESが付与される。)
+
+
+リソースファイルは以下のようにアイテムグループを追加する。
+
+```xml
+  <ItemGroup>
+    <ResourceCompile Include="resource.rc" />
+  </ItemGroup>
+```
+
+また、コンパイルされたwin32リソースをexeに埋め込むため、```<PropertyGroup>``` の下に ```<Win32Resource>``` リソースを設定する。
+
+```xml
+  <PropertyGroup>
+    <Win32Resource>@(ResourceCompile -> '%(RelativeDir)%(filename).res')</Win32Resource>
+  </PropertyGroup>
+```
+
+ここでは、リソースグループの各アイテムの属性名から「*.res」という形式の名前に変換している。
+
+(ちなみに、この場合、ファイルが複数ある場合はセミコロン結合の文字列になるが、```Win32Resource``` は単一ファイルしか受け取らないので、複数リソースある場合はエラーになるだろう。)
+
+> VS2017が入っている環境で、開発者コマンドプロンプトからMSBuildを実行した場合は正常にコンパイルできるが、Visual Studio上からビルドした場合、
+> **"Microsoft.Build.Shared.InternalErrorException: MSB0001: Internal MSBuild Error: rc.exe unexpectedly not a rooted path"** というエラーが出る場合は、
+> 環境変数PATHに、WindowsSDKへのパスを入れると解決する。
+
+> 参考:  [https://stackoverflow.com/questions/43640465/cant-find-xsd-exe-in-the-path-during-msbuild-community-tasks-beforebuild-step-i:title]
+
+> VSExpress2017でもWindowsSDKは自動的に入っているので、SDKへのパスが不明の場合は、開発者コマンドプロンプトを開いてPATHを見てみると良い。
+
+> (なお、エンバカデロのRAD Studioとか、その他のWin32をビルドできるツールをいれていると、```rc.exe```へのパスが環境変数に設定済みの可能性もある。)
+
+>> <small><font color="#006633">
+>> はたして、VC++のプロジェクトが環境変数を設定せずともVS上からも ```rc.exe``` を起動できるのは、MSBuild内のインポートで 
+
+>> ```<Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props"/>
+>> <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />``` や
+>> ```<Import Project="$(VCTargetsPath)\Microsoft.Cpp.WindowsSDK.props" />``` などのプロパティ設定で、
+>> 各種ツールへのパスを検索しており、それを
+>> ```<UsingTask TaskName="SetEnv" AssemblyFile="$(VCTargetsPath)Microsoft.Build.CppTasks.Common.dll"/>```
+>> で示される、VC++用の ```SetEnvタスク``` を使ってスクリプト内で環境変数PATHを設定しているためである。
+
+>> これを真似すればC#プロジェクト内からの ```rc.exe``` へのパスを設定できるとは思われる。
+
+>> が、このあたりは、かなり込み入ったコードになっており、うまく対応したとしてもバージョンが変われば動かなくなる感じもあるので、やはり、手作業で環境変数PATHを設定するのが無難であろうか。
+
+>> (もしくはVC++でリソースコンパイルするだけのサブプロジェクトを作るとか。)
+>></font></small>
+
+なお、このリソース設定箇所は、画面からも確認できるが入力はできない。(ファイル名としてチェックされて、エラーになって保存できないため。)
 
 
 
@@ -842,7 +920,14 @@ Sub obj_NamePropertyChanged(ByVal name)
 End Sub
 ```
 
-ただし、```COM Elevation Moniker``` を経由する場合は、```WScript.GetObject()``` ではなく、直接、```GetObject()``` を使う必要があるようである。(理由は不明)
+ただし、```Moniker``` を経由する場合は、直接、スクリプト言語の```GetObject()``` を使う必要がある。(```WScript.GetObject()``` は各種モニカをサポートしていないようである。)
+
+## 参考
+
+- 元ネタ　(C#でOutProc COMサーバーを作成する基本的な構造は、ここを参考にしました。)
+[https://code.msdn.microsoft.com/windowsdesktop/CSExeCOMServer-3b1c1054/sourcecode?fileId=53558&pathId=1370915895:embed:cite]
+
+- [https://msdn.microsoft.com/ja-jp/library/windows/desktop/ms679687(v=vs.85).aspx:title] (MS公式) (UACの昇格可能なCOMのレジストリの設定内容は、ここに書かれています。)
 
 
 以上、メモ終了。
