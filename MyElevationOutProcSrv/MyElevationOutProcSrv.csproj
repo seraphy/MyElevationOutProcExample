@@ -61,6 +61,8 @@
     <ResourceCompile Include="resource.rc" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <!-- VS2017で*.rcをビルドするためのターゲット。VS2017以外でビルドするなど、もし動作しない場合は、
+   このターゲットは無効にして開発者コマンドプロンプトからrc.exeで手動でコンパイルする。 -->
   <Target Name="ResourceCompile"
           BeforeTargets="BeforeCompile"
           Inputs="@(ResourceCompile)"

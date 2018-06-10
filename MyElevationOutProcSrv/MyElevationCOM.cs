@@ -165,18 +165,17 @@ namespace MyElevationOutProcSrv
 
     /// <summary>
     /// COMのクラスファクトリ
+    /// https://referencesource.microsoft.com/#System.ServiceModel/System/ServiceModel/ComIntegration/IClassFactory.cs
     /// https://msdn.microsoft.com/en-us/library/windows/desktop/ms694364(v=vs.85).aspx
     /// </summary>
-    [ComImport, ComVisible(false),
-    InterfaceType(ComInterfaceType.InterfaceIsIUnknown),
-    Guid("00000001-0000-0000-C000-000000000046")]
+    [ComVisible(false)]
+    [ComImport, InterfaceType(ComInterfaceType.InterfaceIsIUnknown), Guid("00000001-0000-0000-C000-000000000046")]
     public interface IClassFactory
     {
-        IntPtr CreateInstance([In] IntPtr pUnkOuter, [In] ref Guid riid);
-
-        void LockServer([In] bool fLock);
+        [return: MarshalAs(UnmanagedType.Interface)]
+        object CreateInstance([In, MarshalAs(UnmanagedType.IUnknown)] object pUnkOuter, [In, MarshalAs(UnmanagedType.LPStruct)] Guid riid);
+        void LockServer([In, MarshalAs(UnmanagedType.Bool)]bool fLock);
     }
-
     /// <summary>
     /// MyElevationOutProcSrvオブジェクトのファクトリ
     /// </summary>
@@ -240,9 +239,10 @@ namespace MyElevationOutProcSrv
         #endregion
 
         #region IClassFactoryの実装
-        public IntPtr CreateInstance([In] IntPtr pUnkOuter, [In] ref Guid riid)
+        [return: MarshalAs(UnmanagedType.Interface)]
+        public object CreateInstance([In, MarshalAs(UnmanagedType.IUnknown)] object pUnkOuter, [In, MarshalAs(UnmanagedType.LPStruct)] Guid riid)
         {
-            if (pUnkOuter != IntPtr.Zero)
+            if (pUnkOuter != null)
             {
                 // アグリゲーションはサポートしていない
                 Marshal.ThrowExceptionForHR(unchecked((int)0x80040110)); // CLASS_E_NOAGGREGATION
@@ -251,8 +251,7 @@ namespace MyElevationOutProcSrv
                 riid == GUID_IDispatch || riid == GUID_IUnknown)
             {
                 // IMyElevationOutProcSrv, IDispatch, IUnknownのいずれかである場合はオブジェクトを生成して返す
-                var inst = new MyElevationOutProcSrv();
-                return Marshal.GetComInterfaceForObject(inst, typeof(IMyElevationOutProcSrv));
+                return new MyElevationOutProcSrv();
             }
 
             // サポート外のインターフェイスが要求された場合はエラーとする

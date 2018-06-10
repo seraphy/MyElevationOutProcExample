@@ -2,6 +2,7 @@
 <Project DefaultTargets="ResourceCompile"
     ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">  
 
+    <!-- VS2017用 -->
     <!-- WindowsSDKのパスを取得する -->
     <Import Project="$(VCTargetsPath)\Microsoft.Cpp.WindowsSDK.props" />
     
