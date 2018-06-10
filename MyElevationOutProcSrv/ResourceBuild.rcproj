@@ -2,20 +2,64 @@
 <Project DefaultTargets="ResourceCompile"
     ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">  
 
-    <!-- VS2017用 -->
-    <!-- WindowsSDKのパスを取得する -->
-    <Import Project="$(VCTargetsPath)\Microsoft.Cpp.WindowsSDK.props" />
-    
+    <!--
+        レジストリから、Windows SDKインストールフォルダを検索する。
+        このあたりはUndocumentedなので、バージョン更新あったら見直すこと。
+     -->
+    <Choose>
+        <!-- Windows Kit 10 -->
+        <When Condition="'$(Registry:HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Microsoft SDKs\Windows\v10.0@InstallationFolder)' != ''
+                        or '$(Registry:HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microsoft\Microsoft SDKs\Windows\v10.0@InstallationFolder)' != ''">
+            <PropertyGroup>
+                <WindowsSdkDir>$(Registry:HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Microsoft SDKs\Windows\v10.0@InstallationFolder)</WindowsSdkDir>
+                <WindowsSdkDir Condition="$(WindowsSdkDir) == ''">$(Registry:HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microsoft\Microsoft SDKs\Windows\v10.0@InstallationFolder)</WindowsSdkDir>
+                <WindowsSdk10ProdVersion>$(Registry:HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Microsoft SDKs\Windows\v10.0@ProductVersion)</WindowsSdk10ProdVersion>
+                <!-- @ProductVersion にリビジョンを除く 0.0.0 形式で格納されているので、.0 をつけてbinフォルダとする -->
+                <WindowsSdkBinDir>$(WindowsSdkDir)bin\$(WindowsSdk10ProdVersion).0\x86</WindowsSdkBinDir>
+            </PropertyGroup>
+        </When>
+        <!-- Windows Kit 8.1 -->
+        <When Condition="'$(Registry:HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Microsoft SDKs\Windows\v8.1@InstallationFolder)' != ''
+                        or '$(Registry:HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microsoft\Microsoft SDKs\Windows\v8.1@InstallationFolder)' != ''">
+            <PropertyGroup>
+                <WindowsSdkDir>$(Registry:HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Microsoft SDKs\Windows\v8.1@InstallationFolder)</WindowsSdkDir>
+                <WindowsSdkDir Condition="$(WindowsSdkDir) == ''">$(Registry:HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microsoft\Microsoft SDKs\Windows\v8.1@InstallationFolder)</WindowsSdkDir>
+                <WindowsSdkBinDir>$(WindowsSdkDir)bin\x86</WindowsSdkBinDir>
+            </PropertyGroup>
+        </When>
+        <!-- Windows Kit 8.0 -->
+        <When Condition="'$(Registry:HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Microsoft SDKs\Windows\v8.0A@InstallationFolder)' != ''
+                        or '$(Registry:HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microsoft\Microsoft SDKs\Windows\v8.0A@InstallationFolder)' != ''">
+            <PropertyGroup>
+                <WindowsSdkDir>$(Registry:HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Microsoft SDKs\Windows\v8.0A@InstallationFolder)</WindowsSdkDir>
+                <WindowsSdkDir Condition="$(WindowsSdkDir) == ''">$(Registry:HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microsoft\Microsoft SDKs\Windows\v8.0A@InstallationFolder)</WindowsSdkDir>
+                <WindowsSdkBinDir>$(WindowsSdkDir)bin\x86</WindowsSdkBinDir>
+            </PropertyGroup>
+        </When>
+        <!-- Windows SDK 7.1 -->
+        <When Condition="'$(Registry:HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Microsoft SDKs\Windows\v7.1A@InstallationFolder)' != ''
+                        or '$(Registry:HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microsoft\Microsoft SDKs\Windows\v7.1A@InstallationFolder)' != ''">
+            <PropertyGroup>
+                <WindowsSdkDir>$(Registry:HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Microsoft SDKs\Windows\v7.1A@InstallationFolder)</WindowsSdkDir>
+                <WindowsSdkDir Condition="$(WindowsSdkDir) == ''">$(Registry:HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microsoft\Microsoft SDKs\Windows\v7.1A@InstallationFolder)</WindowsSdkDir>
+                <WindowsSdkBinDir>$(WindowsSdkDir)bin</WindowsSdkBinDir>
+            </PropertyGroup>
+        </When>
+    </Choose>
+
     <UsingTask TaskName="SetEnv" AssemblyFile="$(VCTargetsPath)Microsoft.Build.CppTasks.Common.dll"/>
     <UsingTask TaskName="RC" AssemblyFile="$(VCTargetsPath)Microsoft.Build.CppTasks.Common.dll"/>
 
     <!-- 環境変数PATHを設定する -->
     <Target Name="SetEnvironmentVariables" BeforeTargets="ResourceCompile">
+        <Error Text="Windows SDK not found." Condition="'$(WindowsSdkDir)' == ''"/>
         <Message Text="VCTargetsPath=$(VCTargetsPath)"/>
         <Message Text="WindowsSdkDir=$(WindowsSdkDir)" />
-        <SetEnv Condition="'$(WindowsSdkDir)' != ''"
+        <Message Text="WindowsSdkBinDir=$(WindowsSdkBinDir)" />
+        
+        <SetEnv Condition="'$(WindowsSdkBinDir)' != ''"
                 Name ="PATH"
-                Value ="$(WindowsSdkDir)bin\x86;"
+                Value ="$(WindowsSdkBinDir);"
                 Prefix ="true">
             <Output TaskParameter="OutputEnvironmentVariable" PropertyName="Path"/>
         </SetEnv>
